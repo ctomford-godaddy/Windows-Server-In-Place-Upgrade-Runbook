@@ -9,7 +9,7 @@
 ---
 
 ## Table of Contents
-1. [Overview & Upgrade Paths](#overview--upgrade-paths)
+1. [Overview and Upgrade Paths](#overview-and-upgrade-paths)
 2. [Prerequisites Checklist](#prerequisites-checklist)
 3. [Phase 1: Pre-Flight Validation](#phase-1-pre-flight-validation)
 4. [Phase 2: Pre-Upgrade Preparation](#phase-2-pre-upgrade-preparation)
@@ -17,12 +17,13 @@
 6. [Phase 4: Post-Upgrade Validation](#phase-4-post-upgrade-validation)
 7. [Phase 5: Agent & Service Restoration](#phase-5-agent--service-restoration)
 8. [Rollback Procedure](#rollback-procedure)
-9. [Troubleshooting & Common Issues](#troubleshooting--common-issues)
-10. [Appendix: Quick Reference](#appendix-quick-reference)
+9. [Known Issues and Lessons Learned](#known-issues-and-lessons-learned)
+10. [Troubleshooting and Common Issues](#troubleshooting-and-common-issues)
+11. [Appendix - Quick Reference](#appendix---quick-reference)
 
 ---
 
-## Overview & Upgrade Paths
+## Overview and Upgrade Paths
 
 ### Supported Direct Upgrade Paths
 | Source | Target | Direct? | Notes |
@@ -87,7 +88,7 @@ https://woerepo.mcs.int.gdcorp.tools/installers/iso/
 
 ---
 
-## Phase 1: Pre-Flight Validation
+## Phase 1 - Pre-Flight Validation
 
 Run this script to validate the system is ready for upgrade. **All blockers must be resolved before proceeding.**
 
@@ -401,7 +402,7 @@ Write-Host ("`n" + ("=" * 60)) -ForegroundColor Cyan
 
 ---
 
-## Phase 2: Pre-Upgrade Preparation
+## Phase 2 - Pre-Upgrade Preparation
 
 ### 2.1 Create Local Admin Fallback
 
@@ -591,7 +592,7 @@ Write-Host "✓ Cleanup complete" -ForegroundColor Green
 
 ---
 
-## Phase 3: Execute Upgrade
+## Phase 3 - Execute Upgrade
 
 ### 3.1 Upgrade Script (Production Version)
 
@@ -853,7 +854,7 @@ while ($true) {
 
 ---
 
-## Phase 4: Post-Upgrade Validation
+## Phase 4 - Post-Upgrade Validation
 
 Run this script after the server reboots to validate the upgrade succeeded.
 
@@ -1107,7 +1108,7 @@ Write-Host "`n"
 
 ---
 
-## Phase 5: Agent & Service Restoration
+## Phase 5 - Agent and Service Restoration
 
 ### 5.1 SCCM Client Reinstallation
 
@@ -1190,7 +1191,109 @@ if ($qualys) {
 
 ---
 
-## Troubleshooting & Common Issues
+## Known Issues and Lessons Learned
+
+### DNS Settings Lost Post-Upgrade
+**Symptom:** Domain login fails, `nslookup` fails, `Test-ComputerSecureChannel` returns False
+
+**Cause:** DHCP may not repopulate DNS servers after upgrade, or static DNS settings get wiped
+
+**Fix:**
+```powershell
+# Check DNS (will be empty if broken)
+Get-DnsClientServerAddress -InterfaceAlias "Ethernet*" -AddressFamily IPv4
+
+# Check pre-upgrade backup if you made one
+Get-Content C:\UpgradeBackup*\Network\ipconfig.txt | Select-String "DNS Servers"
+
+# Or check another working server on same network, then apply:
+Set-DnsClientServerAddress -InterfaceAlias "Ethernet Instance 0" -ServerAddresses "10.255.250.5","10.255.251.5"
+```
+
+**Prevention:** Document DNS servers before upgrade and verify immediately after first reboot.
+
+---
+
+### Secure Channel Broken Post-Upgrade
+**Symptom:** Domain logins fail, SIDs displayed instead of group names in local Administrators
+
+**Cause:** Computer account password sync disrupted during upgrade
+
+**Fix:**
+```powershell
+# Verify DNS works first (see above), then:
+$cred = Get-Credential -UserName "DOMAIN\username" -Message "Enter domain credentials"
+Test-ComputerSecureChannel -Repair -Credential $cred
+```
+
+**Note:** Requires domain account with rights to reset computer account passwords (typically Domain Admins or delegated OU admins).
+
+---
+
+### Site24x7 Agents Don't Auto-Start
+**Symptom:** Site24x7 Windows Agent and APP Monitoring Agent are stopped post-upgrade
+
+**Fix:**
+```powershell
+Get-Service 'Site24x7*' | Where-Object { $_.StartType -eq 'Automatic' -and $_.Status -ne 'Running' } | Start-Service -PassThru
+```
+
+**Prevention:** Add to post-upgrade validation checklist.
+
+---
+
+### IIS WebAdministration Module Broken
+**Symptom:** `Get-Website` fails with COM class error (0x80040154 REGDB_E_CLASSNOTREG)
+
+**Cause:** Legacy WebAdministration module COM registration doesn't survive upgrade cleanly
+
+**Workaround:** Use the newer `IISAdministration` module instead:
+```powershell
+# Instead of:
+Import-Module WebAdministration
+Get-Website
+
+# Use:
+Import-Module IISAdministration
+Get-IISSite
+```
+
+**Alternative:** Use `appcmd` directly:
+```powershell
+& "$env:windir\system32\inetsrv\appcmd.exe" list site
+```
+
+---
+
+### Component Store Corruption Cannot Be Repaired
+**Symptom:** `DISM /RestoreHealth` fails with 0x800f081f even with ISO source
+
+**Cause:** Corruption is in cumulative update packages (e.g., KB5041773) that don't exist in the RTM ISO
+
+**Resolution:** Proceed with upgrade anyway. The in-place upgrade replaces the entire component store, so CU package corruption in the old OS doesn't block the upgrade.
+
+```powershell
+# To identify what's corrupted:
+Select-String -Path C:\Windows\Logs\CBS\CBS.log -Pattern "corrupt|CBS_E_STORE_CORRUPTION" | Select-Object -Last 20
+```
+
+---
+
+### Get-WindowsFeature Not Recognized
+**Symptom:** `Get-WindowsFeature` command not found post-upgrade
+
+**Cause:** ServerManager module not loaded or RSAT tools need reinstall
+
+**Fix:**
+```powershell
+Import-Module ServerManager
+# If still missing:
+Install-WindowsFeature RSAT-Role-Tools -IncludeAllSubFeature
+```
+
+---
+
+## Troubleshooting and Common Issues
 
 ### Issue: ISO Download Fails
 ```powershell
@@ -1233,7 +1336,7 @@ Get-WinEvent -FilterHashtable @{LogName='System'; ID=7000,7001,7023} -MaxEvents 
 
 ---
 
-## Appendix: Quick Reference
+## Appendix - Quick Reference
 
 ### ISO URLs
 | Version | URL |
