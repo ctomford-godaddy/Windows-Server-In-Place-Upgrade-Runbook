@@ -570,7 +570,9 @@ Get-ChildItem $backupPath -Recurse | Measure-Object -Property Length -Sum |
     ForEach-Object { Write-Host "  Total Size: $([math]::Round($_.Sum / 1KB, 2)) KB" }
 ```
 
-### 2.3 Clean Up Component Store (Optional but Recommended)
+### 2.3 Clean Up Component Store (Optional)
+
+> **Note:** In enterprise environments with controlled Windows Update (WSUS/SCCM), these commands may fail with `0x800f081f` (source files not found). This is expected and does not block the upgrade. The in-place upgrade replaces the entire component store anyway.
 
 ```powershell
 # Reduce upgrade time and potential issues by cleaning component store
@@ -579,15 +581,29 @@ Write-Host "Cleaning component store (this may take several minutes)..." -Foregr
 # Analyze first
 Dism /Online /Cleanup-Image /AnalyzeComponentStore
 
-# Clean up
+# Attempt cleanup - may fail in enterprise environments, that's OK
 Dism /Online /Cleanup-Image /StartComponentCleanup /ResetBase
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "⚠ Component cleanup failed (likely due to WSUS/no WU access) - proceeding anyway" -ForegroundColor Yellow
+}
 
 # Clear Windows Update cache
 Stop-Service wuauserv -Force
 Remove-Item "C:\Windows\SoftwareDistribution\Download\*" -Recurse -Force -EA SilentlyContinue
 Start-Service wuauserv
 
-Write-Host "✓ Cleanup complete" -ForegroundColor Green
+Write-Host "✓ Cleanup complete (or skipped)" -ForegroundColor Green
+```
+
+**If pre-flight reports component store corruption:**
+
+- Corruption in cumulative update packages (e.g., KB5041773) cannot be repaired with RTM ISO
+- The upgrade will proceed despite this corruption
+- Post-upgrade, the component store will be fresh from the new OS
+
+```powershell
+# To see what's corrupted (informational only):
+Select-String -Path C:\Windows\Logs\CBS\CBS.log -Pattern "CBS_E_STORE_CORRUPTION" | Select-Object -Last 10
 ```
 
 ---
