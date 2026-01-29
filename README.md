@@ -1,6 +1,8 @@
 # Windows Server In-Place Upgrade Runbook
 ## 2016 → 2019/2022/2025 Enterprise Guide
 
+**Original Guide:** Andrew Griffiths  
+**Enhanced By:** Chad Tomford  
 **Team:** org-gpe-ms-common-services  
 **Last Updated:** January 2025
 
@@ -647,7 +649,7 @@ Write-Host "  WINDOWS SERVER IN-PLACE UPGRADE" -ForegroundColor Cyan
 Write-Host "  Target: Windows Server $TargetVersion" -ForegroundColor Cyan
 Write-Host "  Server: $env:COMPUTERNAME" -ForegroundColor Cyan
 Write-Host "  Mode:   $(if($Quiet){'Quiet (Unattended)'}else{'Interactive'})" -ForegroundColor Cyan
-Write-Host "="*60 -ForegroundColor Cyan
+Write-Host ("=" * 60) -ForegroundColor Cyan
 
 Write-Log "Starting upgrade process to Windows Server $TargetVersion"
 
