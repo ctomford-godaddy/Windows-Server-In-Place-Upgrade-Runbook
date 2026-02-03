@@ -456,8 +456,9 @@ Write-Host "  LOCAL ADMIN CREDENTIALS - SAVE THESE" -ForegroundColor Cyan
 Write-Host ("=" * 50) -ForegroundColor Cyan
 Write-Host "  Username: .\$accountName"
 Write-Host "  Password: $password"
-Write-Host "="*50 -ForegroundColor Cyan
+Write-Host ("=" * 50) -ForegroundColor Cyan
 Write-Host "`nStore these securely before proceeding!`n" -ForegroundColor Yellow
+Write-Host "Store in Vault: https://vault.secrets.int.gd3p.tools/ui/vault/secrets/gpe-ms-common-services_prod_kv-v2/kv/list/dev-migration/windows/`n" -ForegroundColor Gray
 ```
 
 ### 2.2 Backup Critical Configurations
