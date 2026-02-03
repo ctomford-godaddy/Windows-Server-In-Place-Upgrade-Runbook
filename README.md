@@ -624,9 +624,12 @@ Select-String -Path C:\Windows\Logs\CBS\CBS.log -Pattern "CBS_E_STORE_CORRUPTION
     Target Windows Server version: 2019, 2022, or 2025
 .PARAMETER Quiet
     Run in quiet mode (no GUI). Remove for troubleshooting.
+.PARAMETER SkipRebootCheck
+    Bypass pending reboot check. Use only when confident flags are false positives.
 .EXAMPLE
     .\Invoke-WindowsUpgrade.ps1 -TargetVersion 2025
     .\Invoke-WindowsUpgrade.ps1 -TargetVersion 2019 -Quiet:$false
+    .\Invoke-WindowsUpgrade.ps1 -TargetVersion 2025 -SkipRebootCheck
 #>
 
 [CmdletBinding()]
@@ -634,8 +637,10 @@ param(
     [Parameter(Mandatory)]
     [ValidateSet('2019', '2022', '2025')]
     [string]$TargetVersion,
-    
-    [switch]$Quiet = $true
+
+    [switch]$Quiet = $true,
+
+    [switch]$SkipRebootCheck
 )
 
 $ErrorActionPreference = 'Stop'
@@ -686,10 +691,15 @@ Write-Log "Disk space OK: $freeGB GB free"
 $pendingReboot = (Test-Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired") -or
                  (Test-Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending")
 if ($pendingReboot) {
-    Write-Log "Pending reboot detected - cannot proceed" -Level ERROR
-    throw "Pending reboot - please restart and try again"
+    if ($SkipRebootCheck) {
+        Write-Log "Pending reboot detected but bypassed with -SkipRebootCheck" -Level WARN
+    } else {
+        Write-Log "Pending reboot detected - cannot proceed" -Level ERROR
+        throw "Pending reboot - please restart and try again"
+    }
+} else {
+    Write-Log "No pending reboots"
 }
-Write-Log "No pending reboots"
 #endregion
 
 #region Download ISO
